@@ -9,7 +9,7 @@
     "verified": true,
     "description": "Обзоры смартфонов и гаджетов, тесты автономности и долгие сравнения без воды.",
     "url": "https://youtube.com/@dima_tech",
-    "image": "",
+    "image": "https://picsum.photos/seed/blogger1/400/400",
     "emoji": "📱"
   },
   {
@@ -35,7 +35,7 @@
     "verified": true,
     "description": "Простые рецепты на каждый день, кулинарные эксперименты и честные обзоры ресторанов.",
     "url": "https://youtube.com/@max_food",
-    "image": "",
+    "image": "https://picsum.photos/seed/blogger2/400/400",
     "emoji": "🍔"
   },
   {
@@ -61,7 +61,7 @@
     "verified": false,
     "description": "Короткие видео из поездок: лайфхаки, маршруты и неочевидные места.",
     "url": "https://tiktok.com/@sasha_travel",
-    "image": "",
+    "image": "https://picsum.photos/seed/blogger3/400/400",
     "emoji": "🌍"
   },
   {

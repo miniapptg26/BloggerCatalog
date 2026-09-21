@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" content="Каталог блогеров — YouTube, TikTok, Telegram, Instagram и Twitch: ниши, подписчики, верификация и прямые ссылки на профили.">
   <title>Каталог блогеров</title>
+  <script>
+    // Тема применяется до отрисовки, чтобы не было «мигания»
+    (function () {
+      try {
+        if (localStorage.getItem('blogger_theme') === 'light') {
+          document.documentElement.classList.add('light');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,12 +24,22 @@
         <h1>Каталог блогеров</h1>
         <p class="subtitle">Авторы и каналы — по платформам и нишам</p>
       </div>
-      <span class="header-actions">
-        <button id="adminOpenBtn" class="admin-open-btn hidden" type="button" aria-label="Админ-панель: добавить блогера" title="Админ-панель">➕</button>
+      <div class="header-actions">
         <span id="countLabel" class="count-label">0 блогеров</span>
-      </span>
+        <button id="statsBtn" class="header-round-btn" type="button" aria-label="Статистика" title="Статистика">📊</button>
+        <button id="editorBtn" class="header-round-btn editor-btn hidden" type="button" aria-label="Редактор каталога" title="Редактор каталога (владелец)">📝</button>
+        <button id="exportBtn" class="header-round-btn" type="button" aria-label="Экспорт выборки" title="Скопировать список текущей выборки">📤</button>
+        <button id="luckyBtn" class="lucky-btn" type="button" aria-label="Мне повезёт" title="Мне повезёт">🎲</button>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Сменить тему" title="Сменить тему">🌙</button>
+      </div>
     </div>
   </header>
+
+  <!-- Прелоадер -->
+  <div id="loader" class="loader" aria-hidden="false">
+    <div class="loader-spinner"></div>
+    <p>Загружаем каталог…</p>
+  </div>
 
   <main class="main">
     <section class="search-section" aria-label="Поиск и фильтры">
@@ -34,9 +54,11 @@
           autocomplete="off"
         >
         <select id="sortSelect" class="sort-select" aria-label="Сортировка">
-          <option value="subs">По подписчикам</option>
-          <option value="name">По имени А-Я</option>
-          <option value="id">Сначала новые</option>
+          <option value="subs_desc">Подписчики ↓</option>
+          <option value="subs_asc">Подписчики ↑</option>
+          <option value="name">Имя А-Я</option>
+          <option value="name_desc">Имя Я-А</option>
+          <option value="id">Новые</option>
         </select>
       </div>
       <div id="chips" class="chips" role="group" aria-label="Платформы"></div>
@@ -52,96 +74,65 @@
     </section>
   </main>
 
+  <button id="toTop" class="to-top" type="button" aria-label="Наверх" title="Наверх">↑</button>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <!-- Админ-панель: видна только администратору (@g179p) -->
-  <div id="adminModal" class="modal" aria-hidden="true">
-    <div class="modal-overlay" data-admin-close=""></div>
-    <div class="modal-panel" role="dialog" aria-modal="true" aria-label="Админ-панель">
-      <div class="modal-head">
-        <h2>Админ-панель</h2>
-        <button id="adminCloseBtn" class="modal-close" type="button" aria-label="Закрыть">✕</button>
+  <!-- Модалка деталей блогера -->
+  <div id="detailModal" class="modal" aria-hidden="true">
+    <div class="modal-overlay" data-close-detail=""></div>
+    <div class="modal-panel detail-panel" role="dialog" aria-modal="true" aria-label="Подробнее о блогере">
+      <button id="detailCloseBtn" class="detail-close" type="button" aria-label="Закрыть">✕</button>
+      <div id="detailBody" class="detail-body"></div>
+    </div>
+  </div>
+
+  <!-- Модалка статистики -->
+  <div id="statsModal" class="modal" aria-hidden="true">
+    <div class="modal-overlay" data-close-stats=""></div>
+    <div class="modal-panel detail-panel" role="dialog" aria-modal="true" aria-label="Статистика каталога">
+      <div class="modal-head stats-head">
+        <span class="modal-head-title">📊 Статистика</span>
       </div>
-      <div class="modal-body">
-        <section class="admin-section">
-          <h3>🔗 Подключение к GitHub</h3>
-          <label class="field">
-            <span>Token (fine-grained)</span>
-            <input id="ghToken" type="password" placeholder="Fine-grained token…" autocomplete="off">
-          </label>
-          <div class="field-row">
-            <label class="field">
-              <span>Владелец (owner)</span>
-              <input id="ghOwner" type="text" placeholder="username" autocomplete="off">
-            </label>
-            <label class="field">
-              <span>Репозиторий</span>
-              <input id="ghRepo" type="text" placeholder="blogger-catalog" autocomplete="off">
-            </label>
-          </div>
-          <button id="checkGitHubBtn" class="check-btn" type="button">Проверить связь</button>
-          <div id="githubStatus" class="github-status" role="status"></div>
-        </section>
+      <button id="statsCloseBtn" class="detail-close" type="button" aria-label="Закрыть">✕</button>
+      <div id="statsBody" class="stats-body"></div>
+    </div>
+  </div>
 
-        <section class="admin-section">
-          <h3>📋 Записи в каталоге</h3>
-          <button id="loadItemsBtn" class="load-btn" type="button">🔄 Загрузить список</button>
-          <div id="itemsStatus" class="github-status" role="status"></div>
-          <div id="itemsList" class="items-list" aria-live="polite"></div>
-        </section>
-
-        <section class="admin-section">
-          <h3>👤 Новый блогер</h3>
-          <label class="field">
-            <span>Имя на карточке *</span>
-            <input id="adminDisplayName" type="text" placeholder="Пётр Художник">
-          </label>
-          <label class="field">
-            <span>Ник (с @) *</span>
-            <input id="adminName" type="text" placeholder="@petr_paint" autocomplete="off">
-          </label>
-          <label class="field">
-            <span>Ниша</span>
-            <input id="adminNiche" type="text" list="nicheList" placeholder="Искусство и творчество">
-            <datalist id="nicheList"></datalist>
-          </label>
-          <div class="field-row">
-            <label class="field">
-              <span>Платформа *</span>
-              <select id="adminPlatform">
-                <option value="youtube">YouTube</option>
-                <option value="tiktok">TikTok</option>
-                <option value="telegram">Telegram</option>
-                <option value="instagram">Instagram</option>
-                <option value="twitch">Twitch</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Подписчики *</span>
-              <input id="adminSubscribers" type="number" min="0" step="1" inputmode="numeric" placeholder="450000">
-            </label>
-          </div>
-          <label class="check-field">
-            <input id="adminVerified" type="checkbox"> Верифицированный профиль
-          </label>
-          <label class="field">
-            <span>Описание (опц.)</span>
-            <textarea id="adminDescription" rows="2" placeholder="Короткое описание"></textarea>
-          </label>
-          <div class="field-row">
-            <label class="field">
-              <span>Ссылка на профиль</span>
-              <input id="adminUrl" type="url" placeholder="https://youtube.com/@petr_paint" autocomplete="off">
-            </label>
-            <label class="field">
-              <span>Эмодзи (опц.)</span>
-              <input id="adminEmoji" type="text" maxlength="8" placeholder="🎨">
-            </label>
-          </div>
-        </section>
-
-        <button id="saveBtn" class="save-btn" type="button">💾 Сохранить в каталог</button>
+  <!-- Модалка редактора владельца: GitHub API (автосохранение) + локальный генератор JSON -->
+  <div id="editorModal" class="modal" aria-hidden="true">
+    <div class="modal-overlay" data-close-editor=""></div>
+    <div class="modal-panel editor-panel" role="dialog" aria-modal="true" aria-label="Редактор каталога">
+      <div class="modal-head editor-head">
+        <span class="modal-head-title">📝 Редактор каталога</span>
       </div>
+      <button id="editorCloseBtn" class="detail-close" type="button" aria-label="Закрыть">✕</button>
+
+      <!-- 🔌 GitHub API (автосохранение) -->
+      <div class="github-section">
+        <div class="github-title">🔌 GitHub API (автосохранение)</div>
+        <div class="editor-field">
+          <label for="ghToken">Токен</label>
+          <input type="password" id="ghToken" placeholder="Fine-grained token (paste)" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="editor-field">
+          <label for="ghOwner">Владелец</label>
+          <input type="text" id="ghOwner" placeholder="Ваш GitHub-ник" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="editor-field">
+          <label for="ghRepo">Репозиторий</label>
+          <input type="text" id="ghRepo" placeholder="vape-catalog / blogger-catalog" autocomplete="off" spellcheck="false">
+        </div>
+        <button id="checkGhBtn" class="check-gh-btn" type="button">Проверить связь</button>
+        <div id="ghStatus" class="github-status" role="status" aria-live="polite"></div>
+        <p class="hint">Токен хранится только в localStorage вашего браузера. Права: Contents: Read and write на один репозиторий. Как получить — в README.</p>
+      </div>
+
+      <div class="editor-tabs" role="tablist" aria-label="Вкладки редактора">
+        <button id="editorTabAdd" class="tab active" type="button" role="tab" aria-selected="true" data-tab="add">➕ Добавить запись</button>
+        <button id="editorTabDelete" class="tab" type="button" role="tab" aria-selected="false" data-tab="delete">🗑 Удалить запись</button>
+      </div>
+      <div id="editorBody" class="editor-body"></div>
     </div>
   </div>
 
