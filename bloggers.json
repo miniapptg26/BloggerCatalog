@@ -1,16 +1,16 @@
 [
   {
     "id": 1,
-    "name": "@dima_tech",
-    "displayName": "Дмитрий Техно",
+    "name": "@Vape_Ded",
+    "displayName": "VapeDed",
     "niche": "Технологии и обзоры",
-    "platform": "youtube",
-    "subscribers": 1240000,
+    "platform": "telegramm",
+    "subscribers": 2950,
     "verified": true,
-    "description": "Обзоры смартфонов и гаджетов, тесты автономности и долгие сравнения без воды.",
-    "url": "https://youtube.com/@dima_tech",
+    "description": "Обзоры жидкостей и устройств",
+    "url": "https://t.me/Vape_Ded",
     "image": "https://github.com/miniapptg26/BloggerCatalog/issues/1#issue-5525358786",
-    "emoji": "📱"
+    "emoji": ""
   },
   {
     "id": 2,
