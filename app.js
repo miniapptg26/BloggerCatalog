@@ -444,6 +444,12 @@ const ghTokenInput = document.getElementById('ghToken');
 const ghOwnerInput = document.getElementById('ghOwner');
 const ghRepoInput = document.getElementById('ghRepo');
 
+/* DOM секции «Записи в каталоге» */
+const loadItemsBtn = document.getElementById('loadItemsBtn');
+const itemsStatusEl = document.getElementById('itemsStatus');
+const itemsListEl = document.getElementById('itemsList');
+let adminItemsCache = []; // последний список, загруженный из GitHub
+
 /* Показываем кнопку ➕ только администратору */
 function setAdminVisible() {
   if (isAdmin && adminOpenBtn) adminOpenBtn.classList.remove('hidden');
@@ -659,6 +665,201 @@ function fillNicheList() {
   });
 }
 
+/* ===== Админ: записи в каталоге (загрузка списка и удаление) ===== */
+
+function itemsCountLabel(n) {
+  if (n === 0) return 'Каталог пуст';
+  if (CONFIG.jsonPath === 'bloggers.json') {
+    return n + ' ' + plural(n, 'блогер', 'блогера', 'блогеров');
+  }
+  return n + ' ' + plural(n, 'товар', 'товара', 'товаров');
+}
+
+function setItemsStatus(message, kind) {
+  if (!itemsStatusEl) return;
+  itemsStatusEl.textContent = message;
+  itemsStatusEl.classList.remove('ok', 'err');
+  if (kind === 'ok') itemsStatusEl.classList.add('ok');
+  else if (kind === 'err') itemsStatusEl.classList.add('err');
+}
+
+/* Имя записи для строки списка и подтверждения удаления */
+function adminItemName(item) {
+  if (!item) return 'Без имени';
+  const display = item.displayName || '';
+  const nick = item.name || '';
+  return (display ? display + ' ' : '') + nick;
+}
+
+/* Дополнительный контекст: платформа + подписчики */
+function adminItemMeta(item) {
+  if (!item) return '';
+  const parts = [];
+  const platform = PLATFORM_LABELS[item.platform] || item.platform;
+  if (platform) parts.push(platform);
+  if (item.subscribers !== undefined && item.subscribers !== null && item.subscribers !== '') {
+    parts.push('👥 ' + formatSubs(item.subscribers));
+  }
+  return parts.join(' · ');
+}
+
+/* Загрузка списка записей: token/owner/repo берём из localStorage */
+async function loadItems() {
+  const token = localStorage.getItem('gh_token') || '';
+  const owner = localStorage.getItem('gh_owner') || '';
+  const repo = localStorage.getItem('gh_repo') || '';
+  if (!token || !owner || !repo) {
+    setItemsStatus('Сначала подключите GitHub', 'err');
+    renderItems([]);
+    return;
+  }
+  if (loadItemsBtn) loadItemsBtn.disabled = true;
+  setItemsStatus('Загружаем список…');
+  try {
+    const url = 'https://api.github.com/repos/' + encodeURIComponent(owner) +
+      '/' + encodeURIComponent(repo) + '/contents/' + encodeURIComponent(CONFIG.jsonPath) + '?ref=main';
+    const response = await fetch(url, { headers: githubHeaders(token) });
+    if (response.status === 404) {
+      setItemsStatus('Файл не найден', 'err');
+      renderItems([]);
+      return;
+    }
+    if (response.status === 401 || response.status === 403) {
+      setItemsStatus('Проверьте токен и права (нужно Contents: Read and write)', 'err');
+      renderItems([]);
+      return;
+    }
+    if (!response.ok) {
+      setItemsStatus('Ошибка загрузки: ' + await githubErrorMessage(response), 'err');
+      renderItems([]);
+      return;
+    }
+    const meta = await response.json();
+    const arr = JSON.parse(decodeBase64(meta.content));
+    const items = Array.isArray(arr) ? arr : [];
+    adminItemsCache = items;
+    setItemsStatus(itemsCountLabel(items.length), 'ok');
+    renderItems(items);
+  } catch (err) {
+    setItemsStatus('Ошибка загрузки: ' + ((err && err.message) || 'нет соединения'), 'err');
+  } finally {
+    if (loadItemsBtn) loadItemsBtn.disabled = false;
+  }
+}
+
+/* Рендер строк списка: новые сверху (по убыванию id) */
+function renderItems(items) {
+  if (!itemsListEl) return;
+  itemsListEl.replaceChildren();
+
+  if (items.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'items-empty';
+    empty.textContent = 'Каталог пуст';
+    itemsListEl.appendChild(empty);
+    return;
+  }
+
+  const sorted = items.slice().sort((a, b) => Number(b.id) - Number(a.id));
+  let index = 0;
+  sorted.forEach((item) => {
+    index += 1;
+    const row = document.createElement('div');
+    row.className = 'items-row';
+
+    const num = document.createElement('span');
+    num.className = 'items-num';
+    num.textContent = '#' + ((item.id !== undefined && item.id !== null) ? item.id : index);
+
+    const info = document.createElement('div');
+    info.className = 'items-info';
+
+    const name = document.createElement('span');
+    name.className = 'items-name';
+    name.textContent = adminItemName(item);
+
+    const meta = document.createElement('span');
+    meta.className = 'items-sub';
+    meta.textContent = adminItemMeta(item);
+
+    info.append(name, meta);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'items-del';
+    del.title = 'Удалить';
+    del.setAttribute('aria-label', 'Удалить запись');
+    del.textContent = '🗑';
+    del.dataset.id = String(item.id);
+
+    row.append(num, info, del);
+    itemsListEl.appendChild(row);
+  });
+}
+
+/* Подтверждение: нативный confirm есть и в браузере, и в Telegram WebView */
+function askDeleteConfirm(itemName) {
+  const message = 'Удалить запись «' + itemName + '»? Это действие нельзя отменить.';
+  if (typeof window.confirm === 'function') return window.confirm(message);
+  return false; // без нативного confirm удаление не выполняем (безопасный фолбэк)
+}
+
+/* Удаление записи через Contents API (commit 'Remove item via Mini App') */
+async function removeItem(id) {
+  const target = adminItemsCache.find((item) => Number(item.id) === Number(id));
+  if (!target) {
+    setItemsStatus('Запись не найдена в списке', 'err');
+    return;
+  }
+  if (!askDeleteConfirm(adminItemName(target))) return;
+
+  const { token, owner, repo } = getRepoInputs();
+  if (!token || !owner || !repo) {
+    setItemsStatus('Сначала подключите GitHub', 'err');
+    return;
+  }
+  saveRepoToLocalStorage();
+  setItemsStatus('Удаляем…');
+
+  let catalog;
+  try {
+    catalog = await fetchCatalog(owner, repo, token, false);
+  } catch (err) {
+    setItemsStatus('Ошибка чтения каталога: ' + ((err && err.message) || 'нет соединения'), 'err');
+    return;
+  }
+
+  const nextItems = catalog.items.filter((item) => Number(item.id) !== Number(id));
+  if (nextItems.length === catalog.items.length) {
+    setItemsStatus('Запись #' + id + ' не найдена в репозитории', 'err');
+    return;
+  }
+
+  const content = encodeBase64(JSON.stringify(nextItems, null, 2));
+  const putBody = { message: 'Remove item via Mini App', content: content, sha: catalog.sha };
+
+  try {
+    const response = await fetch(
+      'https://api.github.com/repos/' + encodeURIComponent(owner) +
+        '/' + encodeURIComponent(repo) + '/contents/' + encodeURIComponent(CONFIG.jsonPath),
+      {
+        method: 'PUT',
+        headers: Object.assign(githubHeaders(token), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify(putBody)
+      }
+    );
+    if (response.ok) {
+      setItemsStatus('✅ Запись удалена', 'ok');
+      showToast('Удалено');
+      setTimeout(loadItems, 1500);
+    } else {
+      setItemsStatus('Ошибка: ' + await githubErrorMessage(response), 'err');
+    }
+  } catch (err) {
+    setItemsStatus('Ошибка: ' + ((err && err.message) || 'нет соединения'), 'err');
+  }
+}
+
 /* События админ-панели */
 if (adminOpenBtn) adminOpenBtn.addEventListener('click', openAdmin);
 if (adminCloseBtn) adminCloseBtn.addEventListener('click', closeAdmin);
@@ -678,6 +879,13 @@ if (saveBtn) {
     } finally {
       saveBtn.disabled = false;
     }
+  });
+}
+if (loadItemsBtn) loadItemsBtn.addEventListener('click', loadItems);
+if (itemsListEl) {
+  itemsListEl.addEventListener('click', (event) => {
+    const btn = event.target.closest ? event.target.closest('.items-del') : null;
+    if (btn && btn.dataset && btn.dataset.id) removeItem(btn.dataset.id);
   });
 }
 

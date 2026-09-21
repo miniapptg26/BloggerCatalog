@@ -885,3 +885,130 @@ button {
   filter: brightness(1.08);
   box-shadow: 0 0 36px rgba(77, 155, 255, 0.5), 0 8px 24px rgba(0, 0, 0, 0.3);
 }
+
+/* ============================================================
+   Админ: «Записи в каталоге» — список и удаление через GitHub
+   ============================================================ */
+
+/* Кнопка «🔄 Загрузить список» — вторичная, полупрозрачная подложка */
+.load-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 18px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  transition: background var(--t-fast) ease, box-shadow var(--t-fast) ease,
+    border-color var(--t-fast) ease, transform var(--t-fast) ease;
+}
+
+.load-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(77, 155, 255, 0.55);
+  box-shadow: 0 0 16px rgba(77, 155, 255, 0.25);
+}
+
+.load-btn:active {
+  transform: scale(0.96);
+}
+
+.load-btn:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Список записей: внутренний скролл, строки-карточки */
+.items-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.items-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+}
+
+.items-num {
+  flex: 0 0 auto;
+  min-width: 34px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--tg-theme-hint-color, var(--muted));
+}
+
+.items-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.items-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--tg-theme-text-color, var(--text));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.items-sub {
+  font-size: 0.78rem;
+  color: var(--tg-theme-hint-color, var(--muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Кнопка удаления 🗑 — 36px круг, красный градиент */
+.items-del {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+  color: #ffffff;
+  background: linear-gradient(135deg, #ff4d5e, #d92d3a);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(255, 77, 94, 0.35);
+  transition: filter var(--t-fast) ease, box-shadow var(--t-fast) ease, transform var(--t-fast) ease;
+}
+
+.items-del:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 0 18px rgba(255, 77, 94, 0.5);
+}
+
+.items-del:active {
+  transform: scale(0.95);
+}
+
+/* Пустой список */
+.items-empty {
+  padding: 14px 12px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--tg-theme-hint-color, var(--muted));
+  border: 1px dashed var(--card-border);
+  border-radius: 12px;
+}
