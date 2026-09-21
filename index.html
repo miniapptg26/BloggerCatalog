@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Каталог блогеров — YouTube, TikTok, Telegram, Instagram и Twitch: ниши, подписчики, верификация и прямые ссылки на профили.">
+  <title>Каталог блогеров</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-titles">
+        <h1>Каталог блогеров</h1>
+        <p class="subtitle">Авторы и каналы — по платформам и нишам</p>
+      </div>
+      <span id="countLabel" class="count-label">0 блогеров</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="search-section" aria-label="Поиск и фильтры">
+      <div class="search-row">
+        <input
+          id="searchInput"
+          class="search-input"
+          type="search"
+          inputmode="search"
+          placeholder="Поиск по имени, нише или платформе…"
+          aria-label="Поиск по каталогу"
+          autocomplete="off"
+        >
+        <select id="sortSelect" class="sort-select" aria-label="Сортировка">
+          <option value="subs">По подписчикам</option>
+          <option value="name">По имени А-Я</option>
+          <option value="id">Сначала новые</option>
+        </select>
+      </div>
+      <div id="chips" class="chips" role="group" aria-label="Платформы"></div>
+    </section>
+
+    <section aria-label="Каталог блогеров">
+      <div id="catalog" class="catalog"></div>
+      <div id="emptyState" class="empty-state" hidden>
+        <div class="empty-emoji" aria-hidden="true">📭</div>
+        <p>Ничего не найдено</p>
+        <p class="empty-sub">Попробуйте изменить запрос или сбросить фильтры</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
