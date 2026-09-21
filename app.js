@@ -1,5 +1,14 @@
 'use strict';
 
+/* ===== Настройки ===== */
+const CONFIG = {
+  // Админ-режим: запись блогеров через GitHub REST API (commit в bloggers.json)
+  adminUsername: 'g179p',       // username или числовой id администратора
+  repoOwner: '',                // владелец GitHub-репозитория (вводится в админ-панели)
+  repoName: 'blogger-catalog',  // репозиторий, куда пишутся блогеры
+  jsonPath: 'bloggers.json'     // файл каталога внутри репозитория
+};
+
 /* ===== Обозначения платформ ===== */
 const PLATFORM_EMOJI = {
   youtube: '▶️',
@@ -38,6 +47,12 @@ const state = {
 /* ===== Telegram WebApp ===== */
 const tg = window.Telegram ? window.Telegram.WebApp : null;
 
+/* ===== Определение администратора ===== */
+const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe)
+  ? window.Telegram.WebApp.initDataUnsafe.user
+  : null;
+const isAdmin = !!(tgUser && (tgUser.username === CONFIG.adminUsername || String(tgUser.id) === CONFIG.adminUsername));
+
 /* ===== DOM ===== */
 const catalogEl = document.getElementById('catalog');
 const emptyStateEl = document.getElementById('emptyState');
@@ -69,9 +84,15 @@ function initTelegram() {
     if (value) document.documentElement.style.setProperty(cssVar, value);
   });
 
-  // BackButton: закрывает приложение
+  // BackButton: сначала закрывает админ-модалку, иначе закрывает приложение
   if (tg.BackButton && typeof tg.close === 'function') {
-    tg.BackButton.onClick(() => tg.close());
+    tg.BackButton.onClick(() => {
+      if (adminModal && adminModal.classList.contains('open')) {
+        closeAdmin();
+        return;
+      }
+      tg.close();
+    });
   }
 }
 
@@ -90,6 +111,7 @@ async function loadBloggers() {
   }
   renderChips();
   renderAll();
+  fillNicheList();
 }
 
 function showLoadError(message) {
@@ -409,6 +431,257 @@ catalogEl.addEventListener('click', (event) => {
   }
 });
 
+/* ===== Админ-режим: добавление блогеров через GitHub API ===== */
+
+/* DOM админ-панели */
+const adminOpenBtn = document.getElementById('adminOpenBtn');
+const adminModal = document.getElementById('adminModal');
+const adminCloseBtn = document.getElementById('adminCloseBtn');
+const checkGitHubBtn = document.getElementById('checkGitHubBtn');
+const saveBtn = document.getElementById('saveBtn');
+const githubStatusEl = document.getElementById('githubStatus');
+const ghTokenInput = document.getElementById('ghToken');
+const ghOwnerInput = document.getElementById('ghOwner');
+const ghRepoInput = document.getElementById('ghRepo');
+
+/* Показываем кнопку ➕ только администратору */
+function setAdminVisible() {
+  if (isAdmin && adminOpenBtn) adminOpenBtn.classList.remove('hidden');
+}
+
+function openAdmin() {
+  if (!isAdmin) return;
+  if (ghTokenInput) ghTokenInput.value = localStorage.getItem('gh_token') || '';
+  if (ghOwnerInput) ghOwnerInput.value = localStorage.getItem('gh_owner') || '';
+  if (ghRepoInput) ghRepoInput.value = localStorage.getItem('gh_repo') || CONFIG.repoName;
+  if (githubStatusEl) {
+    githubStatusEl.textContent = '';
+    githubStatusEl.classList.remove('ok', 'err');
+  }
+  adminModal.classList.add('open');
+  adminModal.setAttribute('aria-hidden', 'false');
+  if (tg && tg.BackButton) tg.BackButton.show();
+}
+
+function closeAdmin() {
+  adminModal.classList.remove('open');
+  adminModal.setAttribute('aria-hidden', 'true');
+  if (tg && tg.BackButton) tg.BackButton.hide();
+}
+
+/* UTF-8-safe base64: кириллица и эмодзи */
+function encodeBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function decodeBase64(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+function setGithubStatus(message, kind) {
+  if (!githubStatusEl) return;
+  githubStatusEl.textContent = message;
+  githubStatusEl.classList.remove('ok', 'err');
+  if (kind === 'ok') githubStatusEl.classList.add('ok');
+  else if (kind === 'err') githubStatusEl.classList.add('err');
+}
+
+function getRepoInputs() {
+  return {
+    token: (ghTokenInput && ghTokenInput.value || '').trim(),
+    owner: (ghOwnerInput && ghOwnerInput.value || '').trim(),
+    repo: (ghRepoInput && ghRepoInput.value || '').trim()
+  };
+}
+
+function saveRepoToLocalStorage() {
+  const r = getRepoInputs();
+  localStorage.setItem('gh_token', r.token);
+  localStorage.setItem('gh_owner', r.owner);
+  localStorage.setItem('gh_repo', r.repo);
+}
+
+function githubHeaders(token) {
+  return {
+    'Authorization': 'Bearer ' + token,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  };
+}
+
+async function githubErrorMessage(response) {
+  let message = '';
+  try {
+    const data = await response.json();
+    if (data && data.message) message = data.message;
+  } catch (e) {
+    // ответ не JSON
+  }
+  const text = message ? (response.status + ' ' + message) : ('HTTP ' + response.status);
+  if (response.status === 401) return text + ' — проверьте токен';
+  return text;
+}
+
+const API_LIST_NOUN = CONFIG.jsonPath === 'bloggers.json' ? 'блогеров' : 'товаров';
+
+/* Чтение текущего JSON из репозитория: 200 → массив + sha, 404 → [] + null */
+async function fetchCatalog(owner, repo, token, allowMissing) {
+  const url = 'https://api.github.com/repos/' + encodeURIComponent(owner) +
+    '/' + encodeURIComponent(repo) + '/contents/' + encodeURIComponent(CONFIG.jsonPath) + '?ref=main';
+  const response = await fetch(url, { headers: githubHeaders(token) });
+  if (response.ok) {
+    const meta = await response.json();
+    const arr = JSON.parse(decodeBase64(meta.content));
+    return { items: Array.isArray(arr) ? arr : [], sha: meta.sha };
+  }
+  if (response.status === 404) {
+    if (allowMissing) return { items: [], sha: null };
+    throw new Error(await githubErrorMessage(response));
+  }
+  throw new Error(await githubErrorMessage(response));
+}
+
+async function checkGitHubConnection() {
+  const { token, owner, repo } = getRepoInputs();
+  if (!token || !owner || !repo) {
+    setGithubStatus('Заполните token, owner и repo', 'err');
+    return;
+  }
+  setGithubStatus('Проверяем связь…');
+  try {
+    const { items } = await fetchCatalog(owner, repo, token, false);
+    setGithubStatus('Связь OK: ' + items.length + ' ' + API_LIST_NOUN, 'ok');
+  } catch (err) {
+    setGithubStatus((err && err.message) || 'Ошибка соединения', 'err');
+  }
+}
+
+function collectNewBlogger() {
+  const val = (id) => (document.getElementById(id).value || '').trim();
+  const displayName = val('adminDisplayName');
+  let name = val('adminName');
+  const subscribers = Number(document.getElementById('adminSubscribers').value);
+
+  if (!displayName) {
+    setGithubStatus('Укажите имя блогера', 'err');
+    return null;
+  }
+  if (!name) {
+    setGithubStatus('Укажите ник (например, @username)', 'err');
+    return null;
+  }
+  if (!Number.isFinite(subscribers) || subscribers < 0) {
+    setGithubStatus('Укажите корректное число подписчиков', 'err');
+    return null;
+  }
+  if (name.charAt(0) !== '@') name = '@' + name;
+
+  const item = {
+    displayName: displayName,
+    name: name,
+    niche: val('adminNiche'),
+    platform: document.getElementById('adminPlatform').value,
+    subscribers: subscribers,
+    verified: document.getElementById('adminVerified').checked
+  };
+  const description = val('adminDescription');
+  if (description) item.description = description;
+  const url = val('adminUrl');
+  if (url) item.url = url;
+  const emoji = val('adminEmoji');
+  if (emoji) item.emoji = emoji;
+  return item;
+}
+
+async function publishToGitHub(newItem) {
+  const { token, owner, repo } = getRepoInputs();
+  if (!token || !owner || !repo) {
+    setGithubStatus('Заполните token, owner и repo', 'err');
+    return;
+  }
+  saveRepoToLocalStorage();
+
+  let catalog;
+  try {
+    catalog = await fetchCatalog(owner, repo, token, true);
+  } catch (err) {
+    setGithubStatus('Ошибка чтения каталога: ' + ((err && err.message) || 'нет соединения'), 'err');
+    return;
+  }
+
+  const items = catalog.items;
+  newItem.id = items.reduce((maxId, item) => Math.max(maxId, Number(item.id) || 0), 0) + 1;
+  if (newItem.available === undefined) newItem.available = true;
+  items.push(newItem);
+
+  const content = encodeBase64(JSON.stringify(items, null, 2));
+  const putBody = { message: 'Add item via Mini App', content: content };
+  if (catalog.sha) putBody.sha = catalog.sha;
+
+  try {
+    const response = await fetch(
+      'https://api.github.com/repos/' + encodeURIComponent(owner) +
+        '/' + encodeURIComponent(repo) + '/contents/' + encodeURIComponent(CONFIG.jsonPath),
+      {
+        method: 'PUT',
+        headers: Object.assign(githubHeaders(token), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify(putBody)
+      }
+    );
+    if (response.ok) {
+      setGithubStatus('✅ Сохранено! Каталог обновится…', 'ok');
+      showToast('Сохранено!');
+      setTimeout(function () { location.reload(); }, 1800);
+    } else {
+      setGithubStatus('Ошибка: ' + await githubErrorMessage(response), 'err');
+    }
+  } catch (err) {
+    setGithubStatus('Ошибка: ' + ((err && err.message) || 'нет соединения'), 'err');
+  }
+}
+
+/* datalist с существующими нишами */
+function fillNicheList() {
+  const list = document.getElementById('nicheList');
+  if (!list) return;
+  list.replaceChildren();
+  const niches = [...new Set(state.bloggers.map((b) => b.niche).filter(Boolean))];
+  niches.forEach((niche) => {
+    const option = document.createElement('option');
+    option.value = niche;
+    list.appendChild(option);
+  });
+}
+
+/* События админ-панели */
+if (adminOpenBtn) adminOpenBtn.addEventListener('click', openAdmin);
+if (adminCloseBtn) adminCloseBtn.addEventListener('click', closeAdmin);
+if (adminModal) adminModal.addEventListener('click', (event) => {
+  if (event.target && event.target.hasAttribute('data-admin-close')) closeAdmin();
+});
+if (checkGitHubBtn) checkGitHubBtn.addEventListener('click', checkGitHubConnection);
+if (saveBtn) {
+  saveBtn.addEventListener('click', async () => {
+    if (saveBtn.disabled) return;
+    saveRepoToLocalStorage();
+    const item = collectNewBlogger();
+    if (!item) return;
+    saveBtn.disabled = true;
+    try {
+      await publishToGitHub(item);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+}
+
 /* ===== Старт ===== */
 initTelegram();
+setAdminVisible();
 loadBloggers();
