@@ -27,8 +27,8 @@
       <div class="header-actions">
         <span id="countLabel" class="count-label">0 блогеров</span>
         <button id="statsBtn" class="header-round-btn" type="button" aria-label="Статистика" title="Статистика">📊</button>
-        <button id="editorBtn" class="header-round-btn editor-btn hidden" type="button" aria-label="Редактор каталога" title="Редактор каталога (владелец)">📝</button>
         <button id="exportBtn" class="header-round-btn" type="button" aria-label="Экспорт выборки" title="Скопировать список текущей выборки">📤</button>
+        <button id="viewToggle" class="header-round-btn view-toggle" type="button" aria-label="Переключить вид: сетка / строки" title="Вид: сетка / строки">▦</button>
         <button id="luckyBtn" class="lucky-btn" type="button" aria-label="Мне повезёт" title="Мне повезёт">🎲</button>
         <button id="themeToggle" class="theme-toggle" type="button" aria-label="Сменить тему" title="Сменить тему">🌙</button>
       </div>
@@ -44,24 +44,31 @@
   <main class="main">
     <section class="search-section" aria-label="Поиск и фильтры">
       <div class="search-row">
-        <input
-          id="searchInput"
-          class="search-input"
-          type="search"
-          inputmode="search"
-          placeholder="Поиск по имени, нише или платформе…"
-          aria-label="Поиск по каталогу"
-          autocomplete="off"
-        >
-        <select id="sortSelect" class="sort-select" aria-label="Сортировка">
-          <option value="subs_desc">Подписчики ↓</option>
-          <option value="subs_asc">Подписчики ↑</option>
-          <option value="name">Имя А-Я</option>
-          <option value="name_desc">Имя Я-А</option>
-          <option value="id">Новые</option>
-        </select>
+        <div class="search-wrap">
+          <input
+            id="searchInput"
+            class="search-input"
+            type="text"
+            inputmode="search"
+            placeholder="Поиск по имени, нише или платформе…"
+            aria-label="Поиск по каталогу"
+            autocomplete="off"
+          >
+          <button id="searchClear" class="search-clear hidden" type="button" aria-label="Очистить поиск" title="Очистить поиск">✕</button>
+        </div>
+        <div class="sort-wrap">
+          <select id="sortSelect" class="sort-select" aria-label="Сортировка">
+            <option value="subs_desc">Подписчики ↓</option>
+            <option value="subs_asc">Подписчики ↑</option>
+            <option value="name">Имя А-Я</option>
+            <option value="name_desc">Имя Я-А</option>
+            <option value="id">Новые</option>
+          </select>
+          <button id="resetBtn" class="reset-btn hidden" type="button" title="Сбросить фильтры">↺ Сбросить</button>
+        </div>
       </div>
       <div id="chips" class="chips" role="group" aria-label="Платформы"></div>
+      <div id="chips2" class="chips chips2" role="group" aria-label="Ниши"></div>
     </section>
 
     <section aria-label="Каталог блогеров">
@@ -96,43 +103,6 @@
       </div>
       <button id="statsCloseBtn" class="detail-close" type="button" aria-label="Закрыть">✕</button>
       <div id="statsBody" class="stats-body"></div>
-    </div>
-  </div>
-
-  <!-- Модалка редактора владельца: GitHub API (автосохранение) + локальный генератор JSON -->
-  <div id="editorModal" class="modal" aria-hidden="true">
-    <div class="modal-overlay" data-close-editor=""></div>
-    <div class="modal-panel editor-panel" role="dialog" aria-modal="true" aria-label="Редактор каталога">
-      <div class="modal-head editor-head">
-        <span class="modal-head-title">📝 Редактор каталога</span>
-      </div>
-      <button id="editorCloseBtn" class="detail-close" type="button" aria-label="Закрыть">✕</button>
-
-      <!-- 🔌 GitHub API (автосохранение) -->
-      <div class="github-section">
-        <div class="github-title">🔌 GitHub API (автосохранение)</div>
-        <div class="editor-field">
-          <label for="ghToken">Токен</label>
-          <input type="password" id="ghToken" placeholder="Fine-grained token (paste)" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="editor-field">
-          <label for="ghOwner">Владелец</label>
-          <input type="text" id="ghOwner" placeholder="Ваш GitHub-ник" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="editor-field">
-          <label for="ghRepo">Репозиторий</label>
-          <input type="text" id="ghRepo" placeholder="vape-catalog / blogger-catalog" autocomplete="off" spellcheck="false">
-        </div>
-        <button id="checkGhBtn" class="check-gh-btn" type="button">Проверить связь</button>
-        <div id="ghStatus" class="github-status" role="status" aria-live="polite"></div>
-        <p class="hint">Токен хранится только в localStorage вашего браузера. Права: Contents: Read and write на один репозиторий. Как получить — в README.</p>
-      </div>
-
-      <div class="editor-tabs" role="tablist" aria-label="Вкладки редактора">
-        <button id="editorTabAdd" class="tab active" type="button" role="tab" aria-selected="true" data-tab="add">➕ Добавить запись</button>
-        <button id="editorTabDelete" class="tab" type="button" role="tab" aria-selected="false" data-tab="delete">🗑 Удалить запись</button>
-      </div>
-      <div id="editorBody" class="editor-body"></div>
     </div>
   </div>
 
