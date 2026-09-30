@@ -1700,3 +1700,6 @@ html.light .chip.active .chip-count {
 html.light .card-avatar .media-emoji {
   background: linear-gradient(135deg, rgba(139, 90, 43, 0.20), rgba(217, 164, 65, 0.08));
 }
+
+
+/* Данные каталога изменяются только через bloggers.json на GitHub */

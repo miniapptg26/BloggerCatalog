@@ -1,5 +1,7 @@
 'use strict';
 
+/* Данные каталога изменяются только через bloggers.json на GitHub */
+
 /* ===== Обозначения платформ ===== */
 const PLATFORM_EMOJI = {
   youtube: '▶️',
@@ -98,7 +100,7 @@ const state = {
   verifiedOnly: false, // toggle-чип «Verified»
   sort: 'subs_desc',   // subs_desc | subs_asc | name | name_desc | id
   view: 'grid',        // 'grid' | 'rows' (только сессия, без localStorage)
-  favs: new Set(loadFavs())  // id избранных блогеров
+  favs: new Set(loadFavs()),  // id избранных блогеров
 };
 
 /* ===== Telegram WebApp ===== */
@@ -128,6 +130,8 @@ const detailBody = document.getElementById('detailBody');
 const statsModal = document.getElementById('statsModal');
 const statsCloseBtn = document.getElementById('statsCloseBtn');
 const statsBody = document.getElementById('statsBody');
+
+/* Данные каталога изменяются только через bloggers.json на GitHub */
 
 let detailItem = null; // текущий блогер в модалке деталей
 
@@ -514,6 +518,8 @@ function resetFilters() {
   renderAll();
 }
 
+/* Данные каталога изменяются только через bloggers.json на GitHub */
+
 /* ===== Вид: сетка / строки (только сессия) ===== */
 function toggleView() {
   state.view = (state.view === 'rows') ? 'grid' : 'rows';
@@ -554,6 +560,7 @@ function renderCatalog() {
   renderCount();
   const query = state.search.trim().toLowerCase();
 
+  // Всегда рендерим отфильтрованный список из state.bloggers
   const filtered = getFiltered();
 
   catalogEl.replaceChildren();
